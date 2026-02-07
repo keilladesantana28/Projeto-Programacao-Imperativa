@@ -1,7 +1,7 @@
 # Projeto sobre as Olímpiadas 
 
 Este projeto foi desenvolvido como parte da avaliação da terceira unidade da disciplina Programação Imperativa. 
-O objetivo é desenvolver um projeto para reeposnder quatro questões não triviais utilizando princípios da Programção Imperativa, usando a linguagem C.
+O objetivo é desenvolver um projeto para responder quatro questões não triviais utilizando princípios da Programção Imperativa, usando a linguagem C.
 
 ## Autor
 👤 Ana Laylla Medeiros Rocha 
