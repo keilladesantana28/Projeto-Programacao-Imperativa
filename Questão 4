@@ -1,0 +1,44 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// Estrutura para os dados das atletas (bios.csv)
+typedef struct {
+    char id[20];
+    char nome[100];
+    char genero[10];
+} Atleta;
+
+// Estrutura para os resultados (results.csv)
+typedef struct {
+    char atleta_id[20];
+    int ano;
+    char tipo_medalha[15];
+    char temporada[10]; 
+} Registro;
+
+// Funcao pra ver se o atleta eh do genero feminino
+int ehFeminino(char *genero) {
+    if (strcmp(genero, "Female") == 0) return 1;
+    return 0;
+}
+
+int main() {
+    FILE *f_bios = fopen("bios.csv", "r");
+    FILE *f_results = fopen("results.csv", "r");
+
+    if (f_bios == NULL || f_results == NULL) {
+        printf("Erro ao abrir os arquivos .csv\n");
+        return 1;
+    }
+
+    printf("Processando as atletas com mais medalhas nas ultimas 10 edicoes...\n");
+
+    // TODO: Implementar a busca das 10 edicoes mais recentes (ano + temporada)
+    // TODO: Criar o ranking cruzando os IDs das atletas femininas com os resultados
+
+    fclose(f_bios);
+    fclose(f_results);
+
+    return 0;
+}
