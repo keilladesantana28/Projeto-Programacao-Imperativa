@@ -2,57 +2,141 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct Atleta {
-    char id[20];
+/* Macros para controle de limites e legibilidade (Mnemônicos) */
+#define LINHA_MAX_TAMANHO 2048
+#define MAX_MULHERES 150000
+#define MAX_RANKING 10000
+#define ANO_CORTE 2004
+
+/* Estrutura para mapear IDs femininos vindos do bios.csv */
+typedef struct {
+    int id;
+} AtletaMulher;
+
+/* Estrutura para armazenar o ranking de medalhas */
+typedef struct {
     char nome[100];
-    char genero[15];
-};
+    int total;
+} Ranking;
 
-struct RegistroMedalha {
-    char atleta_id[20];
-    int ano;
-    char medalha[20];
-    char temporada[20];
-};
+/* Variáveis globais para armazenamento em memória */
+AtletaMulher lista_mulheres[MAX_MULHERES];
+int qtd_mulheres = 0;
+Ranking ranking_final[MAX_RANKING];
+int total_no_ranking = 0;
 
-void carregar_mulheres(char *arq) {
-    FILE *f = fopen(arq, "r");
-    if (f == NULL) {
-        printf("erro ao abrir bios\n");
-        return;
-    }
-
-    char buffer[2048];
-    fgets(buffer, 2048, f); // pula cabecalho
-
-    // amanha terminar o while com strtok
-    // conferir se a coluna 4 eh "Female"
-    
-    fclose(f);
+/* Função comparadora para o qsort: ordena de forma decrescente */
+int comparar_medalhas(const void *a, const void *b) {
+    Ranking *atletaA = (Ranking *)a;
+    Ranking *atletaB = (Ranking *)b;
+    return atletaB->total - atletaA->total; 
 }
 
-void processar_medalhas(char *arq) {
-    FILE *f = fopen(arq, "r");
+/* Realiza busca linear para identificar se o ID informado é feminino */
+int eh_mulher(int id_busca) {
+    int i = 0;
+    int resultado = 0;
+    while (i < qtd_mulheres && resultado == 0) {
+        if (lista_mulheres[i].id == id_busca) {
+            resultado = 1;
+        }
+        i++;
+    }
+    return resultado;
+}
+
+/* Extrai IDs de atletas do gênero feminino do arquivo bios.csv */
+void carregar_bios(char *caminho) {
+    FILE *f = fopen(caminho, "r");
     if (f == NULL) {
-        printf("erro ao abrir results\n");
+        printf("Aviso: Nao foi possivel abrir o arquivo %s\n", caminho);
         return;
     }
 
-    char buffer[2048];
-    fgets(buffer, 2048, f);
+    printf("Iniciando leitura do bios.csv...\n");
+    char linha[LINHA_MAX_TAMANHO];
+    fgets(linha, LINHA_MAX_TAMANHO, f); // Ignora o cabecalho
 
-    // logica das ultimas 10 edicoes (verao e inverno)
-    // filtrar medalhas das atletas que estao no outro arquivo
+    while (fgets(linha, LINHA_MAX_TAMANHO, f)) {
+        char *id_str = strtok(linha, ",");
+        strtok(NULL, ","); // Pula nome
+        strtok(NULL, ","); // Pula data de nascimento
+        char *genero = strtok(NULL, ",");
 
+        if (genero != NULL && strcmp(genero, "Female") == 0) {
+            lista_mulheres[qtd_mulheres].id = atoi(id_str);
+            qtd_mulheres++;
+        }
+    }
     fclose(f);
+    printf("Dados das atletas carregados com sucesso.\n");
+}
+
+/* Filtra medalhistas femininas das ultimas 10 edicoes (Verao e Inverno) */
+void processar_resultados(char *caminho) {
+    FILE *f = fopen(caminho, "r");
+    if (f == NULL) {
+        printf("Aviso: Nao foi possivel abrir o arquivo %s\n", caminho);
+        return;
+    }
+
+    printf("Iniciando processamento do results.csv...\n");
+    char linha[LINHA_MAX_TAMANHO];
+    fgets(linha, LINHA_MAX_TAMANHO, f);
+
+    while (fgets(linha, LINHA_MAX_TAMANHO, f)) {
+        int id = atoi(strtok(linha, ","));
+        char *nome = strtok(NULL, ",");
+        strtok(NULL, ","); // Pula NOC (codigo do pais)
+        char *ano_str = strtok(NULL, ",");
+        
+        // Desloca o ponteiro ate a coluna de medalhas (indice 9)
+        char *medalha = NULL;
+        for(int i = 0; i < 6; i++) {
+            medalha = strtok(NULL, ",");
+        }
+
+        if (ano_str != NULL && medalha != NULL) {
+            int ano = atoi(ano_str);
+            // Verifica se a edicao e recente e se houve conquista de medalha
+            if (ano >= ANO_CORTE && strcmp(medalha, "na") != 0) {
+                if (eh_mulher(id)) {
+                    int achei = 0;
+                    for(int i = 0; i < total_no_ranking; i++) {
+                        if(strcmp(ranking_final[i].nome, nome) == 0) {
+                            ranking_final[i].total++;
+                            achei = 1;
+                        }
+                    }
+                    if (achei == 0 && total_no_ranking < MAX_RANKING) {
+                        strcpy(ranking_final[total_no_ranking].nome, nome);
+                        ranking_final[total_no_ranking].total = 1;
+                        total_no_ranking++;
+                    }
+                }
+            }
+        }
+    }
+    fclose(f);
+    printf("Processamento de resultados concluido.\n");
 }
 
 int main() {
-    printf("Questao 4 - Ranking de Medalhas Femininas\n");
-    printf("Ultimas 10 edicoes (Summer/Winter)\n\n");
+    printf("Questao 4 - Atletas Femininas com mais Medalhas\n");
+    printf("Periodo: Ultimas 10 edicoes (Summer e Winter)\n\n");
 
-    carregar_mulheres("bios.csv");
-    processar_medalhas("results.csv");
+    // Chamadas modularizadas das funcoes de processamento
+    carregar_bios("bios.csv");
+    processar_resultados("results.csv");
+
+    // Ordenacao do ranking via qsort (biblioteca stdlib.h)
+    qsort(ranking_final, total_no_ranking, sizeof(Ranking), comparar_medalhas);
+
+    // Exibicao dos 10 melhores resultados obtidos
+    printf("\nRANKING TOP 10:\n");
+    for (int i = 0; i < 10 && i < total_no_ranking; i++) {
+        printf("%d. %s | Medalhas: %d\n", i + 1, ranking_final[i].nome, ranking_final[i].total);
+    }
 
     return 0;
 }
