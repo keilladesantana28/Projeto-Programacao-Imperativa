@@ -4,7 +4,7 @@
 
 //Estrutura para organizar os dados de cada país escolhido
 typedef struct {
-    char noc[4];          //Código de 3 letras (ex: BRA, USA, FRA)
+    char noc[10];          //Código de 3 letras (ex: BRA, USA, FRA)
     int medalhas;         //Total de medalhas acumuladas
     int atletas_count;    //Contador de atletas únicos (pessoas reais)
     int ids_vistos[2000]; //Array para não contar o mesmo ID de atleta duas vezes
@@ -19,7 +19,7 @@ void extrair_coluna(char *linha, int indice_alvo, char *destino) {
     int j = 0;             //É a posição onde vamos escrever no destino
     int entre_aspas = 0;  //Se for 1, o computador sabe que está dentro de um texto e deve ignorar vírgulas.
 
-    while (linha[i] != '\0' && col <= indice_alvo) {
+    while (linha[i] != '\0' && linha[i] != '\n' && col <= indice_alvo) {
         if (linha[i] == '\"') {//continar lendo até a linha não acabar
             entre_aspas = !entre_aspas; //Toda vez que o código encontra uma aspa ("), ele inverte o valor de entre_aspas, fui descobrir depois de tempos que dá para escrever assim
         } else if (linha[i] == ',' && !entre_aspas) {//se passou em uma linha, tinha (,) e o entre_aspas estava desligado
@@ -58,11 +58,11 @@ int main() {
     //Abertura do arquivo em modo leitura ("r")
     FILE *arquivo = fopen("results.csv", "r");
     if (arquivo == NULL) {
-        printf("Erro: Arquivo results.csv nao encontrado!\n");
+        printf("\nErro: Arquivo 'results.csv' nao encontrado na pasta!\n");
         return 1;
     }
 
-    printf("\nProcessando dados... Isso pode levar alguns segundos.\n");
+    printf("\nLendo arquivo... Aguarde.\n");
     fgets(linha, 2048, arquivo); //Pula o cabeçalho
 
     //Processamento leitura linha por linha
@@ -77,20 +77,22 @@ int main() {
                 if (strcmp(noc_str, lista[i].noc) == 0) {
                     extrair_coluna(linha, 4, medal);  //Coluna 4: Medalha ganha (ou vazio)
                     extrair_coluna(linha, 6, id_str); //Coluna 6: ID do atleta
+                    
                     int id_atual = atoi(id_str);
 
                     //Se houver texto na coluna medalha, incrementa o total
-                    if (strlen(medal) > 1) lista[i].medalhas++;
-
+                    if (strlen(medal) > 0 && strcmp(medal, "NA") != 0){
+                        lista[i].medalhas++;
+                    }                      
                     //Lógica de Atleta Único: verifica se o id_visto já existe antes de contar
-                    int ja_foi_visto = 0;
+                    int ja_visto = 0;
                     for (int k = 0; k < lista[i].atletas_count; k++) {
                         if (lista[i].ids_vistos[k] == id_atual) {
-                            ja_foi_visto = 1;
+                            ja_visto = 1;
                             break;
                         }
                     }
-                    if (!ja_foi_visto && lista[i].atletas_count < 2000) {
+                    if (!ja_visto && lista[i].atletas_count < 2000) {
                         lista[i].ids_vistos[lista[i].atletas_count] = id_atual;
                         lista[i].atletas_count++;
                     }
@@ -122,8 +124,7 @@ int main() {
     printf("\n%-10s | %-10s | %-10s | %-10s\n", "NOC", "MEDALHAS", "ATLETAS", "EFICIENCIA");
     printf("----------------------------------------------\n");
     for (int i = 0; i < 10; i++) {
-        printf("%-10s | %-10d | %-10d | %.4f\n", 
-               lista[i].noc, lista[i].medalhas, lista[i].atletas_count, lista[i].eficiencia);
+        printf("%-10s | %-10d | %-10d | %.4f\n", lista[i].noc, lista[i].medalhas, lista[i].atletas_count, lista[i].eficiencia);
     }
 
     return 0;
