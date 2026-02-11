@@ -2,140 +2,164 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Macros para controle de limites e legibilidade (Mnemônicos) */
-#define LINHA_MAX_TAMANHO 2048
-#define MAX_MULHERES 150000
-#define MAX_RANKING 10000
-#define ANO_CORTE 2004
+// Defini esses tamanhos gigantes porque o dataset do Galli tem mais de 100k linhas.
+// Se colocar valores pequenos aqui, o programa crasha na hora de ler.
+#define MAX_MULHERES 200000
+#define MAX_RANKING 20000
+#define TAM_LINHA 4096
 
-/* Estrutura para mapear IDs femininos vindos do bios.csv */
-typedef struct {
-    int id;
-} AtletaMulher;
+typedef struct { 
+    int id_referencia; 
+} AtletaFeminina;
 
-/* Estrutura para armazenar o ranking de medalhas */
-typedef struct {
-    char nome[100];
-    int total;
-} Ranking;
+typedef struct { 
+    char nome_completo[150]; 
+    int contador_medalhas; 
+} RegistroMedalhista;
 
-/* Variáveis globais para armazenamento em memória */
-AtletaMulher lista_mulheres[MAX_MULHERES];
-int qtd_mulheres = 0;
-Ranking ranking_final[MAX_RANKING];
-int total_no_ranking = 0;
+// Variáveis globais para não estourar a memória do computador do lab
+AtletaFeminina cadastro_mulheres[MAX_MULHERES];
+int total_mulheres_mapeadas = 0;
+RegistroMedalhista podio_geral[MAX_RANKING];
+int total_atletas_no_podio = 0;
 
-/* Função comparadora para o qsort: ordena de forma decrescente */
-int comparar_medalhas(const void *a, const void *b) {
-    Ranking *atletaA = (Ranking *)a;
-    Ranking *atletaB = (Ranking *)b;
-    return atletaB->total - atletaA->total; 
+// Função pra ordenar o ranking. O qsort usa isso pra colocar quem tem mais medalha no topo.
+int ordenar_por_medalha(const void *a, const void *b) {
+    RegistroMedalhista *atletaA = (RegistroMedalhista *)a;
+    RegistroMedalhista *atletaB = (RegistroMedalhista *)b;
+    return atletaB->contador_medalhas - atletaA->contador_medalhas;
 }
 
-/* Realiza busca linear para identificar se o ID informado é feminino */
-int eh_mulher(int id_busca) {
-    int i = 0;
-    int resultado = 0;
-    while (i < qtd_mulheres && resultado == 0) {
-        if (lista_mulheres[i].id == id_busca) {
-            resultado = 1;
-        }
-        i++;
-    }
-    return resultado;
-}
-
-/* Extrai IDs de atletas do gênero feminino do arquivo bios.csv */
-void carregar_bios(char *caminho) {
-    FILE *f = fopen(caminho, "r");
-    if (f == NULL) {
-        printf("Aviso: Nao foi possivel abrir o arquivo %s\n", caminho);
+void carregar_arquivo_bios() {
+    FILE *ponteiro_bios = fopen("bios.csv", "r");
+    if (!ponteiro_bios) {
+        printf("Deu ruim: arquivo bios.csv nao encontrado!\n");
         return;
     }
-
-    printf("Iniciando leitura do bios.csv...\n");
-    char linha[LINHA_MAX_TAMANHO];
-    fgets(linha, LINHA_MAX_TAMANHO, f); // Ignora o cabecalho
-
-    while (fgets(linha, LINHA_MAX_TAMANHO, f)) {
-        char *id_str = strtok(linha, ",");
-        strtok(NULL, ","); // Pula nome
-        strtok(NULL, ","); // Pula data de nascimento
-        char *genero = strtok(NULL, ",");
-
-        if (genero != NULL && strcmp(genero, "Female") == 0) {
-            lista_mulheres[qtd_mulheres].id = atoi(id_str);
-            qtd_mulheres++;
-        }
-    }
-    fclose(f);
-    printf("Dados das atletas carregados com sucesso.\n");
-}
-
-/* Filtra medalhistas femininas das ultimas 10 edicoes (Verao e Inverno) */
-void processar_resultados(char *caminho) {
-    FILE *f = fopen(caminho, "r");
-    if (f == NULL) {
-        printf("Aviso: Nao foi possivel abrir o arquivo %s\n", caminho);
-        return;
-    }
-
-    printf("Iniciando processamento do results.csv...\n");
-    char linha[LINHA_MAX_TAMANHO];
-    fgets(linha, LINHA_MAX_TAMANHO, f);
-
-    while (fgets(linha, LINHA_MAX_TAMANHO, f)) {
-        int id = atoi(strtok(linha, ","));
-        char *nome = strtok(NULL, ",");
-        strtok(NULL, ","); // Pula NOC (codigo do pais)
-        char *ano_str = strtok(NULL, ",");
+    
+    char buffer_leitura[TAM_LINHA];
+    // ESSENCIAL: Pula a primeira linha (cabeçalho), senão ele tenta ler o nome da coluna como ID
+    fgets(buffer_leitura, TAM_LINHA, ponteiro_bios); 
+    
+    while (fgets(buffer_leitura, TAM_LINHA, ponteiro_bios)) {
+        char *p_aux = buffer_leitura;
+        int cont_col = 0, aspas_abertas = 0;
+        char *campos[20];
         
-        // Desloca o ponteiro ate a coluna de medalhas (indice 9)
-        char *medalha = NULL;
-        for(int i = 0; i < 6; i++) {
-            medalha = strtok(NULL, ",");
+        // Gambiarra necessária pra ignorar vírgula dentro de aspas (o CSV do Galli é cheio disso)
+        campos[cont_col++] = p_aux;
+        for (; *p_aux; p_aux++) {
+            if (*p_aux == '"') aspas_abertas = !aspas_abertas;
+            else if (*p_aux == ',' && !aspas_abertas) {
+                *p_aux = '\0';
+                campos[cont_col++] = p_aux + 1;
+            }
+        }
+        // Se a coluna 1 for 'Female', guarda o ID que tá na coluna 7
+        if (cont_col >= 8 && strstr(campos[1], "Female")) {
+            cadastro_mulheres[total_mulheres_mapeadas++].id_referencia = atoi(campos[7]);
+        }
+    }
+    fclose(ponteiro_bios);
+}
+
+void processar_arquivo_results() {
+    FILE *ponteiro_results = fopen("results.csv", "r");
+    if (!ponteiro_results) return;
+    
+    char buffer_leitura[TAM_LINHA];
+    // Pula o cabeçalho do results.csv tbm
+    fgets(buffer_leitura, TAM_LINHA, ponteiro_results);
+
+    while (fgets(buffer_leitura, TAM_LINHA, ponteiro_results)) {
+        char *campos_res[20];
+        int c_idx = 0, aspas_abertas = 0;
+        char *p_aux = buffer_leitura;
+
+        // Mesmo parser manual pra não quebrar nos nomes das provas que tem vírgula
+        campos_res[c_idx++] = p_aux;
+        for (; *p_aux; p_aux++) {
+            if (*p_aux == '"') aspas_abertas = !aspas_abertas;
+            else if (*p_aux == ',' && !aspas_abertas) {
+                *p_aux = '\0';
+                campos_res[c_idx++] = p_aux + 1;
+            }
         }
 
-        if (ano_str != NULL && medalha != NULL) {
-            int ano = atoi(ano_str);
-            // Verifica se a edicao e recente e se houve conquista de medalha
-            if (ano >= ANO_CORTE && strcmp(medalha, "na") != 0) {
-                if (eh_mulher(id)) {
-                    int achei = 0;
-                    for(int i = 0; i < total_no_ranking; i++) {
-                        if(strcmp(ranking_final[i].nome, nome) == 0) {
-                            ranking_final[i].total++;
-                            achei = 1;
+        if (c_idx >= 7) {
+            int ano_evento = atoi(campos_res[0]);
+            
+            /* FILTROS IMPORTANTES:
+               1. strlen > 1: Tira campos vazios que bugam o contador.
+               2. strcmp != "na": O 'na' significa que o atleta não ganhou nada, então a gente ignora.
+            */
+            if (ano_evento >= 2004 && strlen(campos_res[4]) > 1 && strcmp(campos_res[4], "na") != 0) {
+                int id_atual = atoi(campos_res[6]);
+                
+                // Só entra no ranking se o ID estiver na lista de mulheres que carregamos antes
+                int is_fem = 0;
+                for(int i=0; i < total_mulheres_mapeadas; i++) {
+                    if(cadastro_mulheres[i].id_referencia == id_atual) { is_fem = 1; break; }
+                }
+
+                if (is_fem) {
+                    int ja_existe = 0;
+                    for (int i = 0; i < total_atletas_no_podio; i++) {
+                        if (strcmp(podio_geral[i].nome_completo, campos_res[5]) == 0) {
+                            podio_geral[i].contador_medalhas++;
+                            ja_existe = 1; break;
                         }
                     }
-                    if (achei == 0 && total_no_ranking < MAX_RANKING) {
-                        strcpy(ranking_final[total_no_ranking].nome, nome);
-                        ranking_final[total_no_ranking].total = 1;
-                        total_no_ranking++;
+                    if (!ja_existe && total_atletas_no_podio < MAX_RANKING) {
+                        strcpy(podio_geral[total_atletas_no_podio].nome_completo, campos_res[5]);
+                        podio_geral[total_atletas_no_podio].contador_medalhas = 1;
+                        total_atletas_no_podio++;
                     }
                 }
             }
         }
     }
-    fclose(f);
-    printf("Processamento de resultados concluido.\n");
+    fclose(ponteiro_results);
 }
 
 int main() {
-    printf("Questao 4 - Atletas Femininas com mais Medalhas\n");
-    printf("Periodo: Ultimas 10 edicoes (Summer e Winter)\n\n");
+    carregar_arquivo_bios();
+    processar_arquivo_results();
+    
+    // Organiza a bagunça: do maior número de medalhas pro menor
+    qsort(podio_geral, total_atletas_no_podio, sizeof(RegistroMedalhista), ordenar_por_medalha);
 
-    // Chamadas modularizadas das funcoes de processamento
-    carregar_bios("bios.csv");
-    processar_resultados("results.csv");
+    int top_dez = (total_atletas_no_podio < 10) ? total_atletas_no_podio : 10;
+    
+    // Arquivo auxiliar pro Gnuplot ler
+    FILE *arquivo_temporario = fopen("grafico.dat", "w");
+    for (int i = 0; i < top_dez; i++) {
+        fprintf(arquivo_temporario, "\"%s\" %d\n", podio_geral[i].nome_completo, podio_geral[i].contador_medalhas);
+    }
+    fclose(arquivo_temporario);
 
-    // Ordenacao do ranking via qsort (biblioteca stdlib.h)
-    qsort(ranking_final, total_no_ranking, sizeof(Ranking), comparar_medalhas);
+    // Configuração do Gnuplot
+    FILE *janela_grafico = popen("gnuplot -persist", "w");
+    if (janela_grafico) {
+        fprintf(janela_grafico, "set title 'Top 10 Atletas Femininas com mais Medalhas (desde 2004)' font ',12'\n");
+        fprintf(janela_grafico, "set style fill solid 0.8 border -1\n");
+        fprintf(janela_grafico, "set ylabel 'Total de Medalhas'\n");
+        fprintf(janela_grafico, "set grid y\n");
+        fprintf(janela_grafico, "set bmargin 12\n"); // Margem grande pros nomes não sumirem
+        
+        // RESOLVE O BUG DAS BARRAS VAZIAS: 
+        // Força o eixo Y a começar no 0 e a mostrar todas as categorias do arquivo .dat
+        fprintf(janela_grafico, "set yrange [0:*]\n"); 
+        
+        fprintf(janela_grafico, "set xtics rotate by -45 font ',8'\n"); // Inclina os nomes pra nao virar um borrão
+        fprintf(janela_grafico, "plot 'grafico.dat' using 2:xtic(1) with boxes notitle lc rgb 'dark-violet'\n");
+        pclose(janela_grafico);
+    }
 
-    // Exibicao dos 10 melhores resultados obtidos
-    printf("\nRANKING TOP 10:\n");
-    for (int i = 0; i < 10 && i < total_no_ranking; i++) {
-        printf("%d. %s | Medalhas: %d\n", i + 1, ranking_final[i].nome, ranking_final[i].total);
+    // Print no terminal só pra garantir a conferência
+    printf("\n--- RESULTADO FINAL ---\n");
+    for (int i = 0; i < top_dez; i++) {
+        printf("%d. %s [%d medalhas]\n", i+1, podio_geral[i].nome_completo, podio_geral[i].contador_medalhas);
     }
 
     return 0;
