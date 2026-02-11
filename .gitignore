@@ -53,3 +53,12 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+
+# Ignorar CSVs na pasta específica (Para ficar organizado)
+data/*.csv
+data/results.csv
+data/bios.csv
+data/noc_regions.csv
+data/populations.csv
+
