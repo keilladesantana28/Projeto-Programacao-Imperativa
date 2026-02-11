@@ -14,4 +14,4 @@ O objetivo é desenvolver um projeto para reeposnder quatro questões não trivi
 - Git e GitHub Codespaces
 
 ## Status do projeto
-🚀 Em desenvolvimento
+🚀 Desenvolvido
