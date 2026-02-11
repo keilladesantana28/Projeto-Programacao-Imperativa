@@ -11,20 +11,66 @@ typedef struct {
     float eficiencia;       //Razão final - (medalhas / atletas)
 } Pais;
 
-//Função para limpar aspas e quebras de linha
+//FUNÇÃO NOVA: GERA O GRÁFICO SEM MEXER NA LÓGICA PRINCIPAL
+void gerar_grafico_gnuplot(Pais lista[]) {
+    //criar um arquivo temporário com os dados calculados
+    FILE *dados = fopen("dados_grafico.dat", "w");
+    if (dados == NULL) {
+        printf("Erro ao criar arquivo de dados para o grafico.\n");
+        return;
+    }
+
+    //escreve: NomePais  Eficiencia
+    for (int i = 0; i < 10; i++) {
+        fprintf(dados, "%s %.4f\n", lista[i].noc, lista[i].eficiencia);
+    }
+    fclose(dados);
+
+    //abrir o Gnuplot via Pipe (Comunicação direta)
+    //o parametro -persistent mantem a janela aberta
+    FILE *gnuplot = popen("gnuplot -persistent", "w"); 
+    
+    if (gnuplot == NULL) {
+        printf("Erro: Gnuplot nao esta instalado ou nao foi encontrado.\n");
+        printf("No Linux/Codespaces, instale com: sudo apt-get install gnuplot\n");
+        return;
+    }
+
+    //enviar comandos de configuração para o Gnuplot
+    fprintf(gnuplot, "set title 'Eficiencia: Medalhas por Atleta (Top 10)'\n");
+    fprintf(gnuplot, "set style data histograms\n");     //estilo histograma
+    fprintf(gnuplot, "set style fill solid 1.0 border -1\n"); //preenchimento sólido
+    fprintf(gnuplot, "set boxwidth 0.7\n");              //largura da barra
+    fprintf(gnuplot, "set grid y\n");                    //grade no eixo Y
+    fprintf(gnuplot, "set ylabel 'Eficiencia (Medalhas/Atleta)'\n");
+    fprintf(gnuplot, "set xlabel 'Paises (NOC)'\n");
+    
+    //Configura o eixo Y para começar do 0 e ter uma margem em cima
+    fprintf(gnuplot, "set yrange [0:*]\n"); 
+
+    
+    //'using 2:xtic(1)' significa: Use a coluna 2 para altura (eficiencia) e a coluna 1 para o nome (NOC)
+    fprintf(gnuplot, "plot 'dados_grafico.dat' using 2:xtic(1) title 'Eficiencia' lc rgb '#2E8B57'\n");
+
+    pclose(gnuplot);
+    printf("\n[SUCESSO] Grafico gerado com sucesso!\n");
+}
+// ------------------------------------------------------------------
+
+
+//Função para limpar aspas e quebras de linha (SEU CÓDIGO ORIGINAL)
 void extrair_coluna(char *linha, int indice_alvo, char *destino) {
     int col = 0;                //Conta em qual coluna o computador está no momento
     int i = 0;                  //É a posição do caractere atual na linha
     int j = 0;                  //É a posição onde vamos escrever no destino
     int entre_aspas = 0;        //Se for 1, o computador sabe que está dentro de um texto e deve ignorar vírgulas
 
-    
     while (linha[i] != '\0' && linha[i] != '\n' && linha[i] != '\r') {
         
         if (linha[i] == '\"') {         //continar lendo até a linha acabar
-            entre_aspas = !entre_aspas; //Toda vez que o código encontra uma aspa ("), ele inverte o valor de entre_aspas, fui descobrir depois de tempos que dá para escrever assim
+            entre_aspas = !entre_aspas; //Toda vez que o código encontra uma aspa ("), ele inverte valor
             
-        }else if (linha[i] == ',' && !entre_aspas) { //se passou em uma linha, tinha (,) e o entre_aspas estava desligado
+        } else if (linha[i] == ',' && !entre_aspas) { //se passou em uma linha, tinha (,) e o entre_aspas estava desligado
             if (col == indice_alvo) {
                 break;                  //verifica se é a coluna que eu quero. Se for, para
             }
@@ -32,16 +78,13 @@ void extrair_coluna(char *linha, int indice_alvo, char *destino) {
             j = 0;                      //Reseta para a próxima coluna
         } 
         else {
-
             if (col == indice_alvo) {   //Se for um caractere comum e eu estiver na coluna alvo, copio para o destino
                 destino[j++] = linha[i];
-            
+            }
         }
         i++;                            //Avanço para o próximo caractere da linha do CSV
     }
     destino[j] = '\0';                  //Fecha a string
-}
-
 }
 
 int main() {
@@ -84,7 +127,6 @@ int main() {
     while (fgets(linha, 4096, arquivo)) {
         linhas_lidas++;
         
-
         extrair_coluna(linha, 0, game); //Assumindo coluna 0 = nome do jogo
 
         //Verifica se contém "2020" e "Summer"
@@ -150,6 +192,10 @@ int main() {
     }
     
     printf("\nProcessamento concluido. Total de linhas lidas: %d\n", linhas_lidas);
+
+    //Chamada de gráfico
+    gerar_grafico_gnuplot(lista);
+    
 
     return 0;
 }
